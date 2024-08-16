@@ -390,6 +390,17 @@ public class UserController {
         return ResponseEntity.ok(res);
     }
 
+
+    @GetMapping("/queryIndividualHistory")
+    @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
+    public ResponseEntity<List<CycleTimes>> getDeviceHistory(@RequestParam Integer userId, @RequestParam String username) {
+        List<CycleTimes> res = showerEventRepository.getIndividualHistory(username, userId);
+        if (res == null || res.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(res);
+    }
+
     @GetMapping("/queryHistory")
     @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
     public ResponseEntity<List<ShowerEvent>> getHistory(@RequestParam String deviceId, @RequestParam Long time) {
@@ -493,5 +504,30 @@ public class UserController {
         }
 
         return ResponseEntity.ok().body(new MessageResponse("Device deleted successfully"));
+    }
+
+    /**
+     * API to get the device name by device ID.
+     *
+     * @param deviceId the device ID
+     * @return ResponseEntity with the device name or an error message
+     */
+    @GetMapping(value = "/getDeviceName")
+    @PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> getDeviceName(@RequestParam String deviceId) {
+        if (StringUtils.isNullOrEmpty(deviceId)) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Device ID is required"));
+        }
+
+        Device device = deviceRepository.findByDeviceId(deviceId);
+        if (device == null) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Device not found"));
+        }
+
+        return ResponseEntity.ok(new MessageResponse(device.getDeviceName()));
     }
 }

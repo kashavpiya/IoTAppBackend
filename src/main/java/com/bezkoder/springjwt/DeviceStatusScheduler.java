@@ -18,8 +18,9 @@ public class DeviceStatusScheduler {
     @Autowired
     private DeviceRepository deviceRepository;  // Assuming you have a repository to get all devices
 
-    @Scheduled(fixedRate = 86400000)  // 24 hours in milliseconds
+    @Scheduled(cron = "0 0 0 * * ?", zone = "America/New_York")
     public void runDeviceStatusCheck() {
+        System.out.println("Scheduled Event For History Starting");
         List<Device> devices = deviceRepository.findAll();  // Retrieve all devices
         for (Device device : devices) {
             showerEventRepository.getDeviceStatus1(device.getDeviceId());

@@ -6,6 +6,7 @@ import com.amazonaws.services.dynamodbv2.datamodeling.QueryResultPage;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.bezkoder.springjwt.models.*;
 import lombok.extern.slf4j.Slf4j;
+import org.h2.schema.Sequence;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -444,6 +445,53 @@ public class ShowerEventRepository {
     }
 
 
+    public List<CycleTimes> getIndividualHistory(String username, Integer userId) {
+       // Retrieve shared devices and user-specific devices
+        List<UserDevice> sharedDevices = userDeviceRepository.findByUserName(username);
+        List<Device> deviceList = deviceRepository.findByUserId(userId);
+
+        // Add shared devices to the deviceList
+        for (UserDevice userDevice : sharedDevices) {
+            Device device = deviceRepository.findByDeviceId(userDevice.getDeviceId());
+            if (device != null && !deviceList.contains(device)) {
+                deviceList.add(device);
+            }
+        }
+
+        // Initialize result list
+        List<CycleTimes> totalResult = new ArrayList<>();
+
+        // Query DynamoDB for each device
+        for (Device device : deviceList) {
+            String deviceId = device.getDeviceId();
+
+            // Setup query with the correct attribute name
+            Map<String, AttributeValue> eav = new HashMap<>();
+            eav.put(":v1", new AttributeValue().withS(deviceId));
+
+            DynamoDBQueryExpression<CycleTimes> queryExpression = new DynamoDBQueryExpression<CycleTimes>()
+                    .withKeyConditionExpression("DeviceID = :v1")  // Adjusted attribute name
+                    .withExpressionAttributeValues(eav);
+
+            // Perform query and handle pagination
+            List<CycleTimes> allResults = new ArrayList<>();
+            QueryResultPage<CycleTimes> cycleTimesPage;
+
+            do {
+                cycleTimesPage = dynamoDBMapper.queryPage(CycleTimes.class, queryExpression);
+                allResults.addAll(cycleTimesPage.getResults());
+                queryExpression.setExclusiveStartKey(cycleTimesPage.getLastEvaluatedKey());
+            } while (cycleTimesPage.getLastEvaluatedKey() != null);
+
+            // Add results to totalResult
+            totalResult.addAll(allResults);
+        }
+
+        // Return results, avoiding null
+        return totalResult.isEmpty() ? Collections.emptyList() : totalResult;
+    }
+
+
     /**
      * Query status
      *
@@ -482,14 +530,15 @@ public class ShowerEventRepository {
             System.out.println(device_id);
             long newCycles = deviceData.getPayload().getCycles();
             System.out.println(deviceData.getPayload());
+            long newTotalTime = deviceData.getPayload().getTotalTime();
 
             // Check if the oldTotalTimes map contains the device_id
             if (oldTotalTimes.containsKey(device_id)) {
                 long oldTotalTime = oldTotalTimes.get(device_id);
                 System.out.println("it exists");
 
-                if ((newCycles != oldCycles.getOrDefault(device_id, 0L)) && (deviceData.getPayload().getStatus() == 0 || deviceData.getPayload().getStatus() == 2)) {
-                    long newTotalTime = deviceData.getPayload().getTotalTime();
+                if ((newCycles != oldCycles.getOrDefault(device_id, 0L))) {
+
                     System.out.println("NEW" + newTotalTime);
                     System.out.println("OLD" + oldTotalTime);
                     System.out.print("oldCy" + oldCycles.getOrDefault(device_id, 0L));
@@ -514,6 +563,7 @@ public class ShowerEventRepository {
                 // If the device_id is not in oldTotalTimes map, add it with the current values
                 oldTotalTimes.put(device_id, deviceData.getPayload().getTotalTime());
                 oldCycles.put(device_id, newCycles);
+                updateShowerTime(device_id, (Long) deviceData.getSample_time(), (int) newTotalTime, (int) newCycles);
             }
         }
     }

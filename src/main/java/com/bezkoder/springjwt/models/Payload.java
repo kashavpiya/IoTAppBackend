@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Payload {
     @DynamoDBAttribute(attributeName = "ID")
-    private String deviceID;
+    private String deviceId;
     @DynamoDBAttribute
     private double temp;
     @DynamoDBAttribute
